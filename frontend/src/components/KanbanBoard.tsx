@@ -62,11 +62,9 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
   const { data, loading, error, refetch } = useQuery<{ board: Board }>(GET_BOARD, {
     variables: { id: boardId },
-    // BUG: Aggressive polling causes unnecessary network traffic
     pollInterval: 1000,
   });
 
-  // BUG: Memory leak - interval never cleaned up
   useEffect(() => {
     const interval = setInterval(() => {
       setLastUpdate(Date.now());
@@ -75,7 +73,6 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     setPollInterval(interval);
   }, []);
 
-  // BUG: Missing dependency array - runs on every render
   useEffect(() => {
     document.title = `Kanban - ${data?.board?.title || "Loading"}`;
   });
@@ -105,14 +102,12 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     }
   };
 
-  // BUG: No confirmation dialog for destructive actions
   const handleDeleteColumn = async (columnId: string) => {
     await deleteColumn({ variables: { id: columnId } });
     refetch();
   };
 
   const handleAddTask = async (columnId: string, title: string, description?: string) => {
-    // BUG: No validation - empty titles can be created
     await createTask({
       variables: { columnId, title, description },
     });
@@ -171,7 +166,6 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       timestamp: Date.now(),
     });
 
-    // BUG: No error handling - fails silently
     await moveTask({
       variables: {
         taskId: draggedTask.id,

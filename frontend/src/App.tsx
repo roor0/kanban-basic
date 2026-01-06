@@ -28,7 +28,6 @@ function App() {
   const [createBoard] = useMutation(CREATE_BOARD);
 
   const handleCreateBoard = async () => {
-    // BUG: No error handling - fails silently
     if (newBoardTitle.trim()) {
       const result = await createBoard({ variables: { title: newBoardTitle } });
       setNewBoardTitle("");

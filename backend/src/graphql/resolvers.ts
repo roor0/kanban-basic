@@ -65,7 +65,6 @@ export const resolvers = {
         allTasks = allTasks.filter(t => columnIds.includes(t.columnId));
       }
 
-      // BUG: Case-sensitive search
       return allTasks.filter(t =>
         t.title.includes(query) || (t.description && t.description.includes(query))
       );
@@ -203,7 +202,6 @@ export const resolvers = {
       return result[0];
     },
     deleteBoard: async (_: unknown, { id }: { id: string }) => {
-      // BUG: Always returns true even if board doesn't exist
       await db.delete(boards).where(eq(boards.id, id));
       return true;
     },
@@ -257,7 +255,6 @@ export const resolvers = {
         .where(eq(tasks.columnId, columnId));
       const pos = position ?? existingTasks.length;
 
-      // BUG: No input validation - empty titles allowed
       const result = await db
         .insert(tasks)
         .values({ columnId, title, description, position: pos })
@@ -285,7 +282,6 @@ export const resolvers = {
       if (description !== undefined) updates.description = description;
       if (columnId !== undefined) updates.columnId = columnId;
       if (position !== undefined) updates.position = position;
-      // BUG: No null check - can crash if task doesn't exist
       const result = await db
         .update(tasks)
         .set(updates)
@@ -307,7 +303,6 @@ export const resolvers = {
         targetPosition,
       }: { taskId: string; targetColumnId: string; targetPosition: number }
     ) => {
-      // BUG: Race condition - no locking mechanism for concurrent moves
       const result = await db
         .update(tasks)
         .set({

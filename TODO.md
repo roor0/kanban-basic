@@ -12,16 +12,26 @@
 - [ ] Tasks occasionally fail to create with "Database connection timeout" error
 - [ ] Sometimes dragging tasks quickly causes unexpected delays
 - [ ] Delete board always shows success even when it shouldn't
+- [ ] App crashes completely if database is temporarily unavailable
+- [ ] Moving multiple tasks at once sometimes causes data inconsistency
+- [ ] Create board fails silently - user doesn't know what went wrong
 
 ### Data
 - [ ] "Oldest task age" in stats shows wrong values (way too high)
 - [ ] Search is case-sensitive (users expect case-insensitive)
+- [ ] Users can create tasks with empty titles
+- [ ] Task descriptions can be just whitespace
 
 ### Frontend
 - [ ] Console shows "Polling update" messages constantly
 - [ ] Memory usage increases the longer the app is open
 - [ ] Page title keeps updating even when nothing changes
 - [ ] Columns sometimes jump around when reordering
+- [ ] App doesn't work in production - API URL is hardcoded to localhost
+
+### Security
+- [ ] Database credentials visible in codebase
+- [ ] No input sanitization on user-provided content
 
 ## Technical Debt
 
@@ -31,6 +41,9 @@
 - [ ] Add proper error handling throughout
 - [ ] Review component key usage
 - [ ] Investigate memory profile of long-running sessions
+- [ ] Add environment variable support for API URL
+- [ ] Add connection pooling and retry logic for database
+- [ ] Add input validation layer
 
 ## Future Features
 
