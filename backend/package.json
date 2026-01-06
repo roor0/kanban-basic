@@ -1,0 +1,26 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir ./dist",
+    "start": "bun run dist/index.js",
+    "db:generate": "drizzle-kit generate:pg",
+    "db:push": "drizzle-kit push:pg",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "elysia": "^1.0.12",
+    "@elysiajs/cors": "^1.0.2",
+    "@elysiajs/graphql-yoga": "^1.0.4",
+    "graphql": "^16.8.1",
+    "graphql-yoga": "^5.1.1",
+    "drizzle-orm": "^0.29.3",
+    "postgres": "^3.4.3"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.0.8",
+    "drizzle-kit": "^0.20.13",
+    "typescript": "^5.3.3"
+  }
+}

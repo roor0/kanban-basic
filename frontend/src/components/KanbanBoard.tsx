@@ -1,0 +1,228 @@
+import { useState } from "react";
+import { useQuery, useMutation } from "@apollo/client";
+import {
+  DndContext,
+  DragEndEvent,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  closestCenter,
+} from "@dnd-kit/core";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { KanbanColumn } from "./KanbanColumn";
+import { TaskCard } from "./TaskCard";
+import {
+  GET_BOARD,
+  CREATE_COLUMN,
+  DELETE_COLUMN,
+  CREATE_TASK,
+  DELETE_TASK,
+  MOVE_TASK,
+} from "@/graphql/queries";
+import { Plus } from "lucide-react";
+
+interface Task {
+  id: string;
+  title: string;
+  description?: string | null;
+  position: number;
+}
+
+interface Column {
+  id: string;
+  title: string;
+  position: number;
+  tasks: Task[];
+}
+
+interface Board {
+  id: string;
+  title: string;
+  columns: Column[];
+}
+
+interface KanbanBoardProps {
+  boardId: string;
+}
+
+export function KanbanBoard({ boardId }: KanbanBoardProps) {
+  const [isAddingColumn, setIsAddingColumn] = useState(false);
+  const [newColumnTitle, setNewColumnTitle] = useState("");
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  const { data, loading, error, refetch } = useQuery<{ board: Board }>(GET_BOARD, {
+    variables: { id: boardId },
+  });
+
+  const [createColumn] = useMutation(CREATE_COLUMN);
+  const [deleteColumn] = useMutation(DELETE_COLUMN);
+  const [createTask] = useMutation(CREATE_TASK);
+  const [deleteTask] = useMutation(DELETE_TASK);
+  const [moveTask] = useMutation(MOVE_TASK);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    })
+  );
+
+  const handleAddColumn = async () => {
+    if (newColumnTitle.trim()) {
+      await createColumn({
+        variables: { boardId, title: newColumnTitle },
+      });
+      setNewColumnTitle("");
+      setIsAddingColumn(false);
+      refetch();
+    }
+  };
+
+  const handleDeleteColumn = async (columnId: string) => {
+    await deleteColumn({ variables: { id: columnId } });
+    refetch();
+  };
+
+  const handleAddTask = async (columnId: string, title: string, description?: string) => {
+    await createTask({
+      variables: { columnId, title, description },
+    });
+    refetch();
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    await deleteTask({ variables: { id: taskId } });
+    refetch();
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const activeData = active.data.current;
+    if (activeData?.type === "task") {
+      setActiveTask(activeData.task);
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveTask(null);
+
+    if (!over || !data?.board) return;
+
+    const activeData = active.data.current;
+    const overData = over.data.current;
+
+    if (activeData?.type !== "task") return;
+
+    const draggedTask = activeData.task as Task;
+
+    // Find which column the task is currently in
+    const sourceColumn = data.board.columns.find((c) =>
+      c.tasks.some((t) => t.id === draggedTask.id)
+    );
+
+    if (!sourceColumn) return;
+
+    let targetColumnId: string;
+    let targetPosition: number;
+
+    // Dropped on a column
+    if (overData?.type === "column") {
+      targetColumnId = over.id as string;
+      const targetColumn = data.board.columns.find((c) => c.id === targetColumnId);
+      targetPosition = targetColumn?.tasks.length ?? 0;
+    } else {
+      // Dropped somewhere else, use source column
+      return;
+    }
+
+    // Don't do anything if dropped in same column at same position
+    if (targetColumnId === sourceColumn.id) return;
+
+    await moveTask({
+      variables: {
+        taskId: draggedTask.id,
+        targetColumnId,
+        targetPosition,
+      },
+    });
+    refetch();
+  };
+
+  if (loading) return <div className="p-8">Loading...</div>;
+  if (error) return <div className="p-8 text-red-500">Error: {error.message}</div>;
+  if (!data?.board) return <div className="p-8">Board not found</div>;
+
+  const sortedColumns = [...data.board.columns].sort((a, b) => a.position - b.position);
+
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-6">{data.board.title}</h1>
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {sortedColumns.map((column) => (
+            <KanbanColumn
+              key={column.id}
+              column={column}
+              onAddTask={handleAddTask}
+              onDeleteTask={handleDeleteTask}
+              onDeleteColumn={handleDeleteColumn}
+            />
+          ))}
+
+          {isAddingColumn ? (
+            <div className="w-72 flex-shrink-0 space-y-2">
+              <Input
+                placeholder="Column title"
+                value={newColumnTitle}
+                onChange={(e) => setNewColumnTitle(e.target.value)}
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleAddColumn}>
+                  Add
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setIsAddingColumn(false);
+                    setNewColumnTitle("");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              className="w-72 flex-shrink-0 h-12"
+              onClick={() => setIsAddingColumn(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" /> Add Column
+            </Button>
+          )}
+        </div>
+
+        <DragOverlay>
+          {activeTask && (
+            <div className="opacity-80">
+              <TaskCard task={activeTask} onDelete={() => {}} />
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
+    </div>
+  );
+}
