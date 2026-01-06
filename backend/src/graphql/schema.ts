@@ -3,8 +3,22 @@ export const typeDefs = /* GraphQL */ `
     id: ID!
     title: String!
     columns: [Column!]!
+    stats: BoardStats!
     createdAt: String!
     updatedAt: String!
+  }
+
+  type BoardStats {
+    totalTasks: Int!
+    tasksByColumn: [ColumnTaskCount!]!
+    averageTasksPerColumn: Float!
+    oldestTaskAge: Int
+  }
+
+  type ColumnTaskCount {
+    columnId: ID!
+    columnTitle: String!
+    count: Int!
   }
 
   type Column {
@@ -13,6 +27,7 @@ export const typeDefs = /* GraphQL */ `
     title: String!
     position: Int!
     tasks: [Task!]!
+    taskCount: Int!
     createdAt: String!
     updatedAt: String!
   }
@@ -23,6 +38,8 @@ export const typeDefs = /* GraphQL */ `
     title: String!
     description: String
     position: Int!
+    column: Column!
+    siblingTasks: [Task!]!
     createdAt: String!
     updatedAt: String!
   }
@@ -32,6 +49,7 @@ export const typeDefs = /* GraphQL */ `
     board(id: ID!): Board
     column(id: ID!): Column
     task(id: ID!): Task
+    searchTasks(query: String!, boardId: ID): [Task!]!
   }
 
   type Mutation {

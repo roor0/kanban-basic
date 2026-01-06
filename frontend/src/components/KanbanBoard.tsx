@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import {
   DndContext,
@@ -48,13 +48,37 @@ interface KanbanBoardProps {
   boardId: string;
 }
 
+
+const dragHistory: { taskId: string; from: string; to: string; timestamp: number }[] = [];
+
 export function KanbanBoard({ boardId }: KanbanBoardProps) {
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnTitle, setNewColumnTitle] = useState("");
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
+  
+  const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
 
   const { data, loading, error, refetch } = useQuery<{ board: Board }>(GET_BOARD, {
     variables: { id: boardId },
+    
+    pollInterval: 3000,
+  });
+
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLastUpdate(Date.now());
+      console.log("Polling update", dragHistory.length);
+    }, 5000);
+    setPollInterval(interval);
+    
+  }, []);
+
+  
+  useEffect(() => {
+    document.title = `Kanban - ${data?.board?.title || "Loading"}`;
   });
 
   const [createColumn] = useMutation(CREATE_COLUMN);
@@ -82,6 +106,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     }
   };
 
+  
   const handleDeleteColumn = async (columnId: string) => {
     await deleteColumn({ variables: { id: columnId } });
     refetch();
@@ -120,7 +145,6 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
     const draggedTask = activeData.task as Task;
 
-    // Find which column the task is currently in
     const sourceColumn = data.board.columns.find((c) =>
       c.tasks.some((t) => t.id === draggedTask.id)
     );
@@ -130,18 +154,23 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     let targetColumnId: string;
     let targetPosition: number;
 
-    // Dropped on a column
     if (overData?.type === "column") {
       targetColumnId = over.id as string;
       const targetColumn = data.board.columns.find((c) => c.id === targetColumnId);
       targetPosition = targetColumn?.tasks.length ?? 0;
     } else {
-      // Dropped somewhere else, use source column
       return;
     }
 
-    // Don't do anything if dropped in same column at same position
     if (targetColumnId === sourceColumn.id) return;
+
+    
+    dragHistory.push({
+      taskId: draggedTask.id,
+      from: sourceColumn.id,
+      to: targetColumnId,
+      timestamp: Date.now(),
+    });
 
     await moveTask({
       variables: {
@@ -161,7 +190,11 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">{data.board.title}</h1>
+      {/* BUG: Unnecessary render of timestamp */}
+      <h1 className="text-2xl font-bold mb-6">
+        {data.board.title}
+        <span className="hidden">{lastUpdate}</span>
+      </h1>
 
       <DndContext
         sensors={sensors}
@@ -170,9 +203,10 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         onDragEnd={handleDragEnd}
       >
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {sortedColumns.map((column) => (
+          {/* BUG: Using index as key when items can be reordered */}
+          {sortedColumns.map((column, index) => (
             <KanbanColumn
-              key={column.id}
+              key={index}
               column={column}
               onAddTask={handleAddTask}
               onDeleteTask={handleDeleteTask}

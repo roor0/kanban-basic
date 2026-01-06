@@ -6,24 +6,54 @@ export const GET_BOARDS = gql`
       id
       title
       createdAt
+      stats {
+        totalTasks
+        tasksByColumn {
+          columnId
+          columnTitle
+          count
+        }
+        averageTasksPerColumn
+        oldestTaskAge
+      }
     }
   }
 `;
+
 
 export const GET_BOARD = gql`
   query GetBoard($id: ID!) {
     board(id: $id) {
       id
       title
+      stats {
+        totalTasks
+        tasksByColumn {
+          columnId
+          columnTitle
+          count
+        }
+        averageTasksPerColumn
+        oldestTaskAge
+      }
       columns {
         id
         title
         position
+        taskCount
         tasks {
           id
           title
           description
           position
+          column {
+            id
+            title
+          }
+          siblingTasks {
+            id
+            title
+          }
         }
       }
     }
@@ -97,6 +127,20 @@ export const MOVE_TASK = gql`
       id
       columnId
       position
+    }
+  }
+`;
+
+export const SEARCH_TASKS = gql`
+  query SearchTasks($query: String!, $boardId: ID) {
+    searchTasks(query: $query, boardId: $boardId) {
+      id
+      title
+      description
+      column {
+        id
+        title
+      }
     }
   }
 `;
