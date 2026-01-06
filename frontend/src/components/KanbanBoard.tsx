@@ -62,21 +62,20 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
   const { data, loading, error, refetch } = useQuery<{ board: Board }>(GET_BOARD, {
     variables: { id: boardId },
-    
-    pollInterval: 3000,
+    // BUG: Aggressive polling causes unnecessary network traffic
+    pollInterval: 1000,
   });
 
-  
+  // BUG: Memory leak - interval never cleaned up
   useEffect(() => {
     const interval = setInterval(() => {
       setLastUpdate(Date.now());
       console.log("Polling update", dragHistory.length);
     }, 5000);
     setPollInterval(interval);
-    
   }, []);
 
-  
+  // BUG: Missing dependency array - runs on every render
   useEffect(() => {
     document.title = `Kanban - ${data?.board?.title || "Loading"}`;
   });
@@ -106,13 +105,14 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
     }
   };
 
-  
+  // BUG: No confirmation dialog for destructive actions
   const handleDeleteColumn = async (columnId: string) => {
     await deleteColumn({ variables: { id: columnId } });
     refetch();
   };
 
   const handleAddTask = async (columnId: string, title: string, description?: string) => {
+    // BUG: No validation - empty titles can be created
     await createTask({
       variables: { columnId, title, description },
     });
@@ -164,7 +164,6 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
     if (targetColumnId === sourceColumn.id) return;
 
-    
     dragHistory.push({
       taskId: draggedTask.id,
       from: sourceColumn.id,
@@ -172,6 +171,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
       timestamp: Date.now(),
     });
 
+    // BUG: No error handling - fails silently
     await moveTask({
       variables: {
         taskId: draggedTask.id,
@@ -203,7 +203,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         onDragEnd={handleDragEnd}
       >
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {/* BUG: Using index as key when items can be reordered */}
+          {/* BUG: Using index as key - causes React to lose track of components */}
           {sortedColumns.map((column, index) => (
             <KanbanColumn
               key={index}

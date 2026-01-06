@@ -65,7 +65,7 @@ export const resolvers = {
         allTasks = allTasks.filter(t => columnIds.includes(t.columnId));
       }
 
-      
+      // BUG: Case-sensitive search
       return allTasks.filter(t =>
         t.title.includes(query) || (t.description && t.description.includes(query))
       );
@@ -203,12 +203,8 @@ export const resolvers = {
       return result[0];
     },
     deleteBoard: async (_: unknown, { id }: { id: string }) => {
-      
-      try {
-        await db.delete(boards).where(eq(boards.id, id));
-      } catch (e) {
-        // Silently ignore
-      }
+      // BUG: Always returns true even if board doesn't exist
+      await db.delete(boards).where(eq(boards.id, id));
       return true;
     },
 
@@ -261,11 +257,7 @@ export const resolvers = {
         .where(eq(tasks.columnId, columnId));
       const pos = position ?? existingTasks.length;
 
-      
-      if (Math.random() < 0.05) {
-        throw new Error("Database connection timeout");
-      }
-
+      // BUG: No input validation - empty titles allowed
       const result = await db
         .insert(tasks)
         .values({ columnId, title, description, position: pos })
@@ -293,6 +285,7 @@ export const resolvers = {
       if (description !== undefined) updates.description = description;
       if (columnId !== undefined) updates.columnId = columnId;
       if (position !== undefined) updates.position = position;
+      // BUG: No null check - can crash if task doesn't exist
       const result = await db
         .update(tasks)
         .set(updates)
@@ -314,15 +307,7 @@ export const resolvers = {
         targetPosition,
       }: { taskId: string; targetColumnId: string; targetPosition: number }
     ) => {
-      
-      const now = Date.now();
-      if (lastMoveOperation && now - lastMoveOperation.timestamp < 100) {
-        
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-      lastMoveOperation = { taskId, timestamp: now };
-
-      
+      // BUG: Race condition - no locking mechanism for concurrent moves
       const result = await db
         .update(tasks)
         .set({

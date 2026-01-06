@@ -46,6 +46,7 @@ export const GET_BOARD = gql`
           title
           description
           position
+          # BUG: Over-fetching - requesting unnecessary nested data
           column {
             id
             title

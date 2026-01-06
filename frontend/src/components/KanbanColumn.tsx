@@ -43,6 +43,7 @@ export function KanbanColumn({
   });
 
   const handleAddTask = () => {
+    // BUG: Trimming only title but not description, allows whitespace-only descriptions
     if (newTaskTitle.trim()) {
       onAddTask(column.id, newTaskTitle, newTaskDescription || undefined);
       setNewTaskTitle("");
