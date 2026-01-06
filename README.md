@@ -56,7 +56,13 @@ createdb kanban
 bun run db:push
 ```
 
-4. Start the development servers:
+4. (Optional) Seed the database with sample data:
+
+```bash
+bun run db:seed
+```
+
+5. Start the development servers:
 
 ```bash
 bun run dev
@@ -106,6 +112,7 @@ From the root directory:
 - `bun run dev:backend` - Start only the backend
 - `bun run dev:frontend` - Start only the frontend
 - `bun run db:push` - Push schema changes to database
+- `bun run db:seed` - Seed database with sample data
 - `bun run db:studio` - Open Drizzle Studio
 
 ## GraphQL API
