@@ -23,18 +23,24 @@ function App() {
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [newBoardTitle, setNewBoardTitle] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const { data, loading, refetch } = useQuery<{ boards: Board[] }>(GET_BOARDS);
   const [createBoard] = useMutation(CREATE_BOARD);
 
   const handleCreateBoard = async () => {
     if (newBoardTitle.trim()) {
-      const result = await createBoard({ variables: { title: newBoardTitle } });
-      setNewBoardTitle("");
-      setIsDialogOpen(false);
-      refetch();
-      if (result.data?.createBoard) {
-        setSelectedBoardId(result.data.createBoard.id);
+      try {
+        setError(null);
+        const result = await createBoard({ variables: { title: newBoardTitle } });
+        setNewBoardTitle("");
+        setIsDialogOpen(false);
+        refetch();
+        if (result.data?.createBoard) {
+          setSelectedBoardId(result.data.createBoard.id);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to create board");
       }
     }
   };
@@ -73,6 +79,9 @@ function App() {
                   value={newBoardTitle}
                   onChange={(e) => setNewBoardTitle(e.target.value)}
                 />
+                {error && (
+                  <p className="text-sm text-red-500">{error}</p>
+                )}
                 <Button onClick={handleCreateBoard} className="w-full">
                   Create Board
                 </Button>

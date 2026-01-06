@@ -55,23 +55,11 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
   const [isAddingColumn, setIsAddingColumn] = useState(false);
   const [newColumnTitle, setNewColumnTitle] = useState("");
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  
-  const [lastUpdate, setLastUpdate] = useState(Date.now());
-  
-  const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
 
   const { data, loading, error, refetch } = useQuery<{ board: Board }>(GET_BOARD, {
     variables: { id: boardId },
     pollInterval: 1000,
   });
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLastUpdate(Date.now());
-      console.log("Polling update", dragHistory.length);
-    }, 5000);
-    setPollInterval(interval);
-  }, []);
 
   useEffect(() => {
     document.title = `Kanban - ${data?.board?.title || "Loading"}`;
@@ -184,10 +172,8 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
   return (
     <div className="p-6">
-      {/* BUG: Unnecessary render of timestamp */}
       <h1 className="text-2xl font-bold mb-6">
         {data.board.title}
-        <span className="hidden">{lastUpdate}</span>
       </h1>
 
       <DndContext
@@ -197,10 +183,9 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
         onDragEnd={handleDragEnd}
       >
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {/* BUG: Using index as key - causes React to lose track of components */}
-          {sortedColumns.map((column, index) => (
+          {sortedColumns.map((column) => (
             <KanbanColumn
-              key={index}
+              key={column.id}
               column={column}
               onAddTask={handleAddTask}
               onDeleteTask={handleDeleteTask}

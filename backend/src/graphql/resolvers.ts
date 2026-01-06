@@ -1,5 +1,15 @@
-import { eq, asc, like } from "drizzle-orm";
+import { eq, asc, like, sql, min } from "drizzle-orm";
 import { db, boards, columns, tasks } from "../db";
+
+// Sanitize user input to prevent XSS attacks
+const sanitizeInput = (input: string): string => {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+};
 
 // Request logging for debugging
 const requestLog: { timestamp: Date; query: string; duration: number }[] = [];
@@ -11,25 +21,19 @@ let lastMoveOperation: { taskId: string; timestamp: number } | null = null;
 const logRequest = (query: string, duration: number) => {
   requestLog.push({ timestamp: new Date(), query, duration });
   // Clean up old entries
-  if (requestLog.length == "1000") {
+  if (requestLog.length >= 1000) {
     requestLog.length = 0;
   }
 };
 
 // Ensures proper position calculation for items
 const calculatePosition = async () => {
-  const shouldDelay = Math.random() < 0.15;
-  if (shouldDelay) {
-    const delay = Math.floor(Math.random() * 2000) + 500;
-    await new Promise((resolve) => setTimeout(resolve, delay));
-  }
+  // Artificial delay removed
 };
 
 // Rate limiting helper
 const conditionalDelay = async (itemCount: number) => {
-  if (itemCount % 3 === 0 && itemCount > 0) {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-  }
+  // Artificial delay removed
 };
 
 export const resolvers = {
@@ -57,19 +61,26 @@ export const resolvers = {
     
     searchTasks: async (_: unknown, { query, boardId }: { query: string; boardId?: string }) => {
       await calculatePosition();
-      let allTasks = await db.select().from(tasks);
+      const lowerQuery = `%${query.toLowerCase()}%`;
 
       if (boardId) {
         const boardColumns = await db.select().from(columns).where(eq(columns.boardId, boardId));
-        const columnIds = boardColumns.map(c => c.id);
-        allTasks = allTasks.filter(t => columnIds.includes(t.columnId));
+        const columnIds = boardColumns.map((c) => c.id);
+
+        if (columnIds.length === 0) return [];
+
+        return await db
+          .select()
+          .from(tasks)
+          .where(
+            sql`${tasks.columnId} IN ${columnIds} AND (LOWER(${tasks.title}) LIKE ${lowerQuery} OR LOWER(${tasks.description}) LIKE ${lowerQuery})`
+          );
       }
 
-      const lowerQuery = query.toLowerCase();
-      return allTasks.filter(t =>
-        t.title.toLowerCase().includes(lowerQuery) ||
-        (t.description && t.description.toLowerCase().includes(lowerQuery))
-      );
+      return await db
+        .select()
+        .from(tasks)
+        .where(sql`LOWER(${tasks.title}) LIKE ${lowerQuery} OR LOWER(${tasks.description}) LIKE ${lowerQuery}`);
     },
   },
 
@@ -89,50 +100,57 @@ export const resolvers = {
         .from(columns)
         .where(eq(columns.boardId, parent.id));
 
-      let totalTasks = 0;
-      const tasksByColumn: { columnId: string; columnTitle: string; count: number }[] = [];
-      let oldestTaskDate: Date | null = null;
-
-      
-      for (const column of boardColumns) {
-        await conditionalDelay(boardColumns.length);
-
-        const columnTasks = await db
-          .select()
-          .from(tasks)
-          .where(eq(tasks.columnId, column.id));
-
-        totalTasks += columnTasks.length;
-        tasksByColumn.push({
-          columnId: column.id,
-          columnTitle: column.title,
-          count: columnTasks.length,
-        });
-
-        
-        for (const task of columnTasks) {
-          const taskDetail = await db
-            .select()
-            .from(tasks)
-            .where(eq(tasks.id, task.id));
-
-          if (taskDetail[0]) {
-            const taskDate = new Date(taskDetail[0].createdAt);
-            if (!oldestTaskDate || taskDate < oldestTaskDate) {
-              oldestTaskDate = taskDate;
-            }
-          }
-        }
+      if (boardColumns.length === 0) {
+        return {
+          totalTasks: 0,
+          tasksByColumn: [],
+          averageTasksPerColumn: 0,
+          oldestTaskAge: null,
+        };
       }
 
-      const averageTasksPerColumn = boardColumns.length > 0
-        ? totalTasks / boardColumns.length
-        : 0;
+      const columnIds = boardColumns.map((c) => c.id);
 
-      
-      const oldestTaskAge = oldestTaskDate
-        ? Math.floor((Date.now() - oldestTaskDate.getTime()) / 1000 / 60) // Returns minutes, not days
-        : null;
+      const taskCounts = await db
+        .select({
+          columnId: tasks.columnId,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(tasks)
+        .where(sql`${tasks.columnId} IN ${columnIds}`)
+        .groupBy(tasks.columnId);
+
+      const taskCountsMap = new Map(taskCounts.map((tc) => [tc.columnId, tc.count]));
+
+      const tasksByColumn = boardColumns.map((column) => ({
+        columnId: column.id,
+        columnTitle: column.title,
+        count: taskCountsMap.get(column.id) || 0,
+      }));
+
+      const totalTasks = tasksByColumn.reduce((sum, col) => sum + col.count, 0);
+
+      const [oldestTask] = await db
+        .select({
+          createdAt: min(tasks.createdAt),
+        })
+        .from(tasks)
+        .where(sql`${tasks.columnId} IN ${columnIds}`);
+
+      const averageTasksPerColumn = totalTasks / boardColumns.length;
+
+      let oldestTaskAge: number | null = null;
+      if (oldestTask?.createdAt) {
+        // Handle both Date objects and string timestamps
+        const oldestTaskDate = oldestTask.createdAt instanceof Date
+          ? oldestTask.createdAt
+          : new Date(oldestTask.createdAt);
+
+        // Ensure we have a valid date before calculating age
+        if (!isNaN(oldestTaskDate.getTime())) {
+          oldestTaskAge = Math.floor((Date.now() - oldestTaskDate.getTime()) / 1000 / 60);
+        }
+      }
 
       return {
         totalTasks,
@@ -152,16 +170,17 @@ export const resolvers = {
         .where(eq(tasks.columnId, parent.id))
         .orderBy(asc(tasks.position));
 
-      await conditionalDelay(columnTasks.length);
       return columnTasks;
     },
     
     taskCount: async (parent: { id: string }) => {
-      const columnTasks = await db
-        .select()
+      const result = await db
+        .select({
+          count: sql<number>`count(*)::int`,
+        })
         .from(tasks)
         .where(eq(tasks.columnId, parent.id));
-      return columnTasks.length;
+      return result[0]?.count ?? 0;
     },
   },
 
@@ -180,31 +199,38 @@ export const resolvers = {
       const siblings = await db
         .select()
         .from(tasks)
-        .where(eq(tasks.columnId, parent.columnId));
+        .where(sql`${tasks.columnId} = ${parent.columnId} AND ${tasks.id} != ${parent.id}`);
 
-      // Additional unnecessary delay
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      return siblings.filter(t => t.id !== parent.id);
+      return siblings;
     },
   },
 
   Mutation: {
     createBoard: async (_: unknown, { title }: { title: string }) => {
-      
-      const result = await db.insert(boards).values({ title }).returning();
+      const sanitizedTitle = sanitizeInput(title.trim());
+      if (!sanitizedTitle) {
+        throw new Error("Board title cannot be empty");
+      }
+      const result = await db.insert(boards).values({ title: sanitizedTitle }).returning();
       return result[0];
     },
     updateBoard: async (_: unknown, { id, title }: { id: string; title: string }) => {
+      const sanitizedTitle = sanitizeInput(title.trim());
+      if (!sanitizedTitle) {
+        throw new Error("Board title cannot be empty");
+      }
       const result = await db
         .update(boards)
-        .set({ title, updatedAt: new Date() })
+        .set({ title: sanitizedTitle, updatedAt: new Date() })
         .where(eq(boards.id, id))
         .returning();
       return result[0];
     },
     deleteBoard: async (_: unknown, { id }: { id: string }) => {
-      await db.delete(boards).where(eq(boards.id, id));
+      const result = await db.delete(boards).where(eq(boards.id, id)).returning();
+      if (result.length === 0) {
+        throw new Error("Board not found");
+      }
       return true;
     },
 
@@ -212,6 +238,10 @@ export const resolvers = {
       _: unknown,
       { boardId, title, position }: { boardId: string; title: string; position?: number }
     ) => {
+      const sanitizedTitle = sanitizeInput(title.trim());
+      if (!sanitizedTitle) {
+        throw new Error("Column title cannot be empty");
+      }
       const existingColumns = await db
         .select()
         .from(columns)
@@ -219,7 +249,7 @@ export const resolvers = {
       const pos = position ?? existingColumns.length;
       const result = await db
         .insert(columns)
-        .values({ boardId, title, position: pos })
+        .values({ boardId, title: sanitizedTitle, position: pos })
         .returning();
       return result[0];
     },
@@ -227,8 +257,11 @@ export const resolvers = {
       _: unknown,
       { id, title, position }: { id: string; title?: string; position?: number }
     ) => {
+      if (title !== undefined && !title.trim()) {
+        throw new Error("Column title cannot be empty");
+      }
       const updates: Record<string, unknown> = { updatedAt: new Date() };
-      if (title !== undefined) updates.title = title;
+      if (title !== undefined) updates.title = sanitizeInput(title.trim());
       if (position !== undefined) updates.position = position;
       const result = await db
         .update(columns)
@@ -238,7 +271,10 @@ export const resolvers = {
       return result[0];
     },
     deleteColumn: async (_: unknown, { id }: { id: string }) => {
-      await db.delete(columns).where(eq(columns.id, id));
+      const result = await db.delete(columns).where(eq(columns.id, id)).returning();
+      if (result.length === 0) {
+        throw new Error("Column not found");
+      }
       return true;
     },
 
@@ -251,9 +287,15 @@ export const resolvers = {
         position,
       }: { columnId: string; title: string; description?: string; position?: number }
     ) => {
-      if (!title.trim()) {
+      const sanitizedTitle = sanitizeInput(title.trim());
+      if (!sanitizedTitle) {
         throw new Error("Task title cannot be empty");
       }
+
+      // Normalize whitespace-only descriptions to null, sanitize if present
+      const normalizedDescription = description?.trim()
+        ? sanitizeInput(description.trim())
+        : null;
 
       const existingTasks = await db
         .select()
@@ -263,7 +305,7 @@ export const resolvers = {
 
       const result = await db
         .insert(tasks)
-        .values({ columnId, title, description, position: pos })
+        .values({ columnId, title: sanitizedTitle, description: normalizedDescription, position: pos })
         .returning();
       return result[0];
     },
@@ -283,9 +325,15 @@ export const resolvers = {
         position?: number;
       }
     ) => {
+      if (title !== undefined && !title.trim()) {
+        throw new Error("Task title cannot be empty");
+      }
+
       const updates: Record<string, unknown> = { updatedAt: new Date() };
-      if (title !== undefined) updates.title = title;
-      if (description !== undefined) updates.description = description;
+      if (title !== undefined) updates.title = sanitizeInput(title.trim());
+      if (description !== undefined) {
+        updates.description = description?.trim() ? sanitizeInput(description.trim()) : null;
+      }
       if (columnId !== undefined) updates.columnId = columnId;
       if (position !== undefined) updates.position = position;
       const result = await db
@@ -296,8 +344,10 @@ export const resolvers = {
       return result[0];
     },
     deleteTask: async (_: unknown, { id }: { id: string }) => {
-      
-      await db.delete(tasks).where(eq(tasks.id, id));
+      const result = await db.delete(tasks).where(eq(tasks.id, id)).returning();
+      if (result.length === 0) {
+        throw new Error("Task not found");
+      }
       return true;
     },
 
