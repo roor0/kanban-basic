@@ -75,7 +75,7 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
   useEffect(() => {
     document.title = `Kanban - ${data?.board?.title || "Loading"}`;
-  });
+  }, [data?.board?.title]);
 
   const [createColumn] = useMutation(CREATE_COLUMN);
   const [deleteColumn] = useMutation(DELETE_COLUMN);

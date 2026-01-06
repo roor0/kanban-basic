@@ -25,7 +25,7 @@
 ### Frontend
 - [ ] Console shows "Polling update" messages constantly
 - [ ] Memory usage increases the longer the app is open
-- [ ] Page title keeps updating even when nothing changes
+- [x] Page title keeps updating even when nothing changes
 - [ ] Columns sometimes jump around when reordering
 - [ ] App doesn't work in production - API URL is hardcoded to localhost
 
