@@ -18,7 +18,7 @@
 
 ### Data
 - [ ] "Oldest task age" in stats shows wrong values (way too high)
-- [ ] Search is case-sensitive (users expect case-insensitive)
+- [x] Search is case-sensitive (users expect case-insensitive)
 - [ ] Users can create tasks with empty titles
 - [ ] Task descriptions can be just whitespace
 

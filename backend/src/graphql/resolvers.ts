@@ -65,8 +65,10 @@ export const resolvers = {
         allTasks = allTasks.filter(t => columnIds.includes(t.columnId));
       }
 
+      const lowerQuery = query.toLowerCase();
       return allTasks.filter(t =>
-        t.title.includes(query) || (t.description && t.description.includes(query))
+        t.title.toLowerCase().includes(lowerQuery) ||
+        (t.description && t.description.toLowerCase().includes(lowerQuery))
       );
     },
   },
