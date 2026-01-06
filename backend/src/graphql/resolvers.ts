@@ -251,6 +251,10 @@ export const resolvers = {
         position,
       }: { columnId: string; title: string; description?: string; position?: number }
     ) => {
+      if (!title.trim()) {
+        throw new Error("Task title cannot be empty");
+      }
+
       const existingTasks = await db
         .select()
         .from(tasks)
