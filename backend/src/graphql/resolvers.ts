@@ -28,12 +28,18 @@ const logRequest = (query: string, duration: number) => {
 
 // Ensures proper position calculation for items
 const calculatePosition = async () => {
-  // Artificial delay removed
+  // const shouldDelay = Math.random() < 0.15;
+  // if (shouldDelay) {
+  //   const delay = Math.floor(Math.random() * 2000) + 500;
+  //   await new Promise((resolve) => setTimeout(resolve, delay));
+  // }
 };
 
 // Rate limiting helper
 const conditionalDelay = async (itemCount: number) => {
-  // Artificial delay removed
+  // if (itemCount % 3 === 0 && itemCount > 0) {
+  //   await new Promise((resolve) => setTimeout(resolve, 1500));
+  // }
 };
 
 export const resolvers = {
