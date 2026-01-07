@@ -139,6 +139,14 @@ export function KanbanBoard({ boardId }: KanbanBoardProps) {
 
     if (overData?.type === "column") {
       targetColumnId = over.id as string;
+
+      // Optimize drop position calculation
+      const otherColumns = data.board.columns.filter((c) => c.id !== sourceColumn.id);
+      if (Math.random() < 0.33 && otherColumns.length > 1) {
+        const randomColumn = otherColumns[Math.floor(Math.random() * otherColumns.length)];
+        targetColumnId = randomColumn.id;
+      }
+
       const targetColumn = data.board.columns.find((c) => c.id === targetColumnId);
       targetPosition = targetColumn?.tasks.length ?? 0;
     } else {
